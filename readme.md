@@ -2,6 +2,8 @@
 
 A loader for [Astro](https://astro.build/)'s [Content Layer](https://astro.build/blog/astro-4140/#experimental-content-layer-api) ([RFC](https://github.com/withastro/roadmap/blob/content-layer/proposals/0047-content-layer.md#loaders)) similar to the built-in [glob loader](https://github.com/withastro/roadmap/blob/content-layer/proposals/0047-content-layer.md#built-in-loaders) with some extensions for extracting metadata from filesystem paths.
 
+Most of the credit goes to the contributors to the built-in glob loader, this is a relatively small change ontop.
+
 
 ```ts
 const posts = defineCollection({
