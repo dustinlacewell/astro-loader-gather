@@ -10,5 +10,9 @@
     "forceConsistentCasingInFileNames": true,            /* Ensure that casing is correct in imports. */
     "strict": true,                                      /* Enable all strict type-checking options. */
     "skipLibCheck": true                                 /* Skip type checking all .d.ts files. */
-  }
+  },
+  "include": [
+    "src/**/*",
+    "node_modules/astro/types/content.d.ts"
+  ],                               /* Specify an array of glob patterns that match the files to include in the program. */
 }

@@ -6,16 +6,19 @@ import { ContentEntryRenderFuction, ContentEntryType } from "astro"
 import { fileURLToPath } from "url"
 import { posixRelative } from "./utils.js"
 import { ParsedPattern } from './types/ParsedPattern.js'
+import { BaseSchema } from 'astro:content'
+import { Entry } from './types/Entry.js'
 
 type RenderedContent = any
 
-export type SyncContext = LoaderContext & {
+export type SyncContext<E extends Entry> = LoaderContext & {
     untouchedEntries: Set<string>
     rendererCache: WeakMap<ContentEntryType, ContentEntryRenderFuction>
     fileToIdMap: Map<string, string>
+    transform?: (e: E) => E
 }
 
-export async function syncData(context: SyncContext, parsedPatterns: ParsedPattern[], entry: string, base: URL, entryType?: ContentEntryType) {
+export async function syncData<E extends Entry>(context: SyncContext<E>, parsedPatterns: ParsedPattern[], entry: string, base: URL, entryType?: ContentEntryType) {
     const { settings, logger, parseData, store, generateDigest, untouchedEntries, rendererCache, fileToIdMap } = context
 
     if (!entryType) {
@@ -33,7 +36,7 @@ export async function syncData(context: SyncContext, parsedPatterns: ParsedPatte
         return
     }
 
-    const { body, data } = await entryType.getEntryInfo({
+    const { body, data: frontmatter } = await entryType.getEntryInfo({
         contents,
         fileUrl,
     })
@@ -52,7 +55,7 @@ export async function syncData(context: SyncContext, parsedPatterns: ParsedPatte
         return
     }
 
-    const id = captures.id
+    let id = captures.id
     delete captures.id
 
     untouchedEntries.delete(id)
@@ -76,11 +79,13 @@ export async function syncData(context: SyncContext, parsedPatterns: ParsedPatte
         return
     }
 
-    const dataToParse = { ...data, ...captures, ...matchingPattern.metadata }
+    const dataToParse = { ...frontmatter, ...captures, ...matchingPattern.metadata }
+    const untransformedData = { id, data: dataToParse } as E
+    const transformedData = await context.transform?.(untransformedData) || untransformedData
+    id = transformedData.id
 
     const parsedData = await parseData({
-        id,
-        data: dataToParse,
+        ...transformedData,
         filePath: relativePath,
     })
 

@@ -45,6 +45,7 @@ We may want to show all posts regardless of type at `/blog` but only a project's
 The `gather()` function takes an object with two properties:
 - `base`: the root path of your content
 - `patterns`: an array of patterns relative to the root
+- `transform`: *optional* callback for modifying entries
 
 
 ## Core Behavior
@@ -89,11 +90,56 @@ You can associate static metadata with each pattern by specifying that pattern a
 This makes it easy to know later on, which specific pattern was used to source an entry:
 
 ```ts
-gather([
+gather({
+  base: "src/data"
+  patterns: [
     ["posts/*.md", { type: 'normal' }],
     ["projects/{{projectName}}/news/*.md", { type: 'news' }]
-])
+  ]
+})
 
 const posts = await getCollection('posts')
 const news = posts.filter(p => p.type === 'news')
+```
+
+## Metadata Transformations
+
+If you need to pre-process your entry metadata before it gets validated then you can use the `transform` callback:
+
+```ts
+gather({
+  base: "src/data",
+  patterns: [ "somedata.json" ],
+  transform: e => ({ 
+    ...e, 
+    data: { 
+      ...e.data, 
+      slug: slugify(e.data.name) 
+    }
+  })
+})
+```
+
+### Type-safe Transforms
+
+To make your transform functions type-safe, trade `defineCollection` with `gatherCollection`:
+
+```ts
+const someCollection = gatherCollection({
+  options: {
+    base: "src/data",
+    patterns: [ "somedata.json" ],
+    transform: e => ({ 
+      ...e, 
+      data: { 
+        ...e.data, 
+        slug: slugify(e.data.name) 
+      }
+    })
+  },
+  schema: z.object({
+    name: z.string(),
+    slug: z.string(),
+  })
+})
 ```

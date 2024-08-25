@@ -10,17 +10,29 @@ import type { ContentEntryRenderFuction, ContentEntryType } from 'astro'
 import { PatternOptions } from './types/PatternOptions.js'
 import { parsePattern } from './patterns.js'
 import { getEntryConfigByExtMap, posixRelative } from './utils.js'
-import { syncData } from './syncData.js'
+import { SyncContext, syncData } from './syncData.js'
 
+import { BaseSchema, defineCollection, SchemaContext, z } from 'astro:content'
+import { Entry } from './types/Entry.js'
 
-export function gather(patternOptions: PatternOptions): Loader {
+export function gatherCollection<S extends BaseSchema>(config: {
+    options: PatternOptions<Entry<S>>,
+    schema?: S | ((context: SchemaContext) => S);
+}) {
+    return defineCollection({
+        loader: gather(config.options),
+        schema: config.schema,
+    })
+}
+
+export function gather<E extends Entry = any>(patternOptions: PatternOptions<E>): Loader {
     const parsedPatterns = patternOptions.patterns.map(parsePattern);
     const fileToIdMap = new Map<string, string>();
 
     return {
         name: 'gatherer-loader',
         load: async (context) => {
-            const { settings, logger, watcher, parseData, store, generateDigest } = context;
+            const { settings, logger, watcher, store } = context;
             const renderFunctionByContentType = new WeakMap<
                 ContentEntryType,
                 ContentEntryRenderFuction
@@ -77,7 +89,8 @@ export function gather(patternOptions: PatternOptions): Loader {
                 untouchedEntries,
                 rendererCache: renderFunctionByContentType,
                 fileToIdMap,
-            };
+                transform: patternOptions.transform,
+            } satisfies SyncContext<E>;
 
             await Promise.all(
                 files.map((entry) => {
@@ -86,7 +99,7 @@ export function gather(patternOptions: PatternOptions): Loader {
                     }
                     return limit(async () => {
                         const entryType = configForFile(entry);
-                        await syncData(extendedContext, parsedPatterns, entry, baseDir, entryType);
+                        await syncData<E>(extendedContext, parsedPatterns, entry, baseDir, entryType);
                     });
                 }),
             );
