@@ -26,35 +26,26 @@ export type SyncContext<E extends Entry> = {
 }
 
 export async function syncData<E extends Entry>(context: SyncContext<E>, parsedPatterns: ParsedPattern[], entry: string, base: URL, entryType?: ContentEntryType) {
-    console.log('syncData called for entry:', entry)
-    console.log('syncData entryType:', entryType?.extensions)
     const { config, logger, parseData, store, generateDigest, untouchedEntries, rendererCache, fileToIdMap } = context
 
     if (!entryType) {
         logger.warn(`No entry type found for ${entry}`)
         return
     }
-    console.log('syncData about to create fileUrl for:', entry, 'base:', base.href)
     const fileUrl = new URL(entry, base)
-    console.log('syncData fileUrl created:', fileUrl.href)
     const contents = await fs.readFile(fileUrl, 'utf-8').catch((err) => {
-        console.log('syncData fs.readFile error:', err.message)
         logger.error(`Error reading ${entry}: ${err.message}`)
         return
     })
-    console.log('syncData contents read, length:', contents?.length)
-
     if (!contents) {
         logger.warn(`No contents found for ${entry}`)
         return
     }
 
-    console.log('syncData about to call entryType.getEntryInfo')
     const { body, data: frontmatter } = await entryType.getEntryInfo({
         contents,
         fileUrl,
     })
-    console.log('syncData getEntryInfo completed')
 
     const relativePath = posixRelative(fileURLToPath(config.root), fileURLToPath(fileUrl))
     const matchingPattern = parsedPatterns.find(({ regex }) => regex.test(relativePath))
@@ -71,7 +62,6 @@ export async function syncData<E extends Entry>(context: SyncContext<E>, parsedP
     }
 
     let id = captures.id
-    console.log(`id: ${id}`)
     delete captures.id
 
     untouchedEntries.delete(id)
@@ -98,23 +88,13 @@ export async function syncData<E extends Entry>(context: SyncContext<E>, parsedP
     const dataToParse = { ...frontmatter, ...captures, ...matchingPattern.metadata }
     const untransformedData = { id, data: dataToParse } as E
     const transformedData = await context.transform?.(untransformedData) || untransformedData
-    console.log('transformedData structure:', JSON.stringify(transformedData, null, 2))
-    console.log('transformedData.id type:', typeof transformedData.id, 'value:', transformedData.id)
     id = String(transformedData.id)
 
-    console.log('SYNCDATA About to call parseData with:', {
-        id,
-        idType: typeof id,
-        hasEndsWith: typeof (id as any)?.endsWith,
-        data: typeof transformedData.data,
-        filePath: relativePath
-    })
     const parsedData = await parseData({
         id,
         data: transformedData.data,
         filePath: relativePath,
     })
-    console.log('SYNCDATA parseData completed for:', id)
 
     if (entryType.getRenderFunction) {
         let render = rendererCache.get(entryType)
