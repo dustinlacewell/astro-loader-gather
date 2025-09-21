@@ -6,10 +6,10 @@ import micromatch from 'micromatch';
 import pLimit from 'p-limit';
 
 import type { Loader } from 'astro/loaders';
-import type { ContentEntryRenderFuction, ContentEntryType } from 'astro'
+import type { ContentEntryRenderFunction, ContentEntryType } from 'astro'
 import { PatternOptions } from './types/PatternOptions.js'
 import { parsePattern } from './patterns.js'
-import { getEntryConfigByExtMap, posixRelative } from './utils.js'
+import { posixRelative } from './utils.js'
 import { SyncContext, syncData } from './syncData.js'
 
 import { BaseSchema, defineCollection, SchemaContext, z } from 'astro:content'
@@ -31,23 +31,18 @@ export function gather<E extends Entry = any>(patternOptions: PatternOptions<E>)
 
     return {
         name: 'gatherer-loader',
-        load: async (context) => {
-            const { settings, logger, watcher, store } = context;
+        load: async (context: any) => {
+            const { config, logger, watcher, parseData, store, generateDigest, entryTypes } = context;
             const renderFunctionByContentType = new WeakMap<
                 ContentEntryType,
-                ContentEntryRenderFuction
+                ContentEntryRenderFunction
             >();
 
-            const untouchedEntries = new Set(store.keys());
-
-            const entryConfigByExt = getEntryConfigByExtMap([
-                ...settings.contentEntryTypes,
-                ...settings.dataEntryTypes,
-            ] as Array<ContentEntryType>);
+            const untouchedEntries = new Set(store.keys()) as Set<string>;
 
             const baseDir = patternOptions.base
-                ? new URL(patternOptions.base, settings.config.root)
-                : settings.config.root;
+                ? new URL(patternOptions.base, config.root)
+                : config.root;
 
             if (!baseDir.pathname.endsWith('/')) {
                 baseDir.pathname = `${baseDir.pathname}/`;
@@ -63,12 +58,12 @@ export function gather<E extends Entry = any>(patternOptions: PatternOptions<E>)
                     logger.warn(`No extension found for ${file}`);
                     return;
                 }
-                return entryConfigByExt.get(`.${ext}`);
+                return entryTypes.get(`.${ext}`);
             }
 
             const limit = pLimit(10);
 
-            const contentDir = new URL('content/', settings.config.srcDir);
+            const contentDir = new URL('content/', config.srcDir);
 
             function isInContentDir(file: string) {
                 const fileUrl = new URL(file, baseDir);
@@ -84,8 +79,35 @@ export function gather<E extends Entry = any>(patternOptions: PatternOptions<E>)
                 return configFiles.has(fileUrl.href);
             }
 
+            // Wrap parseData to detect invalid IDs and provide rich diagnostics without changing behavior
+            const parseDataWithLogging: typeof parseData = async (args: any) => {
+                try {
+                    const idType = typeof args?.id;
+                    if (idType !== 'string') {
+                        const err = new Error('Non-string id passed to parseData');
+                        logger.error(
+                            `parseData diagnostics: idType=${idType}, id=${JSON.stringify(args?.id)}, filePath=${args?.filePath}`,
+                        );
+                        logger.error(err.stack || String(err));
+                    }
+                    return await parseData(args);
+                } catch (e: any) {
+                    logger.error(
+                        `parseData threw: idType=${typeof args?.id}, id=${JSON.stringify(args?.id)}, filePath=${args?.filePath}, message=${e?.message}`,
+                    );
+                    logger.error(e?.stack || String(e));
+                    throw e;
+                }
+            };
+
             const extendedContext = {
-                ...context,
+                config,
+                logger,
+                watcher,
+                parseData: parseDataWithLogging,
+                store,
+                generateDigest,
+                entryTypes,
                 untouchedEntries,
                 rendererCache: renderFunctionByContentType,
                 fileToIdMap,
@@ -129,7 +151,7 @@ export function gather<E extends Entry = any>(patternOptions: PatternOptions<E>)
 
             watcher.on('change', onChange);
             watcher.on('add', onChange);
-            watcher.on('unlink', async (deletedPath) => {
+            watcher.on('unlink', async (deletedPath: string) => {
                 const entry = posixRelative(basePath, deletedPath);
                 if (!matchesPattern(entry)) {
                     return;

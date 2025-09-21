@@ -16,7 +16,7 @@
   "devDependencies": {
     "@types/micromatch": "^4.0.9",
     "@types/node": "^22.5.0",
-    "astro": "^4.14.5",
+    "astro": "^5.13.9",
     "fast-glob": "^3.3.2",
     "kleur": "^4.1.5",
     "micromatch": "^4.0.8",
