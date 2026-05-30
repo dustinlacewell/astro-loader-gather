@@ -81,6 +81,7 @@ export async function syncData<E extends Entry>(context: SyncContext<E>, parsedP
                 existingEntry.filePath,
             )
         }
+        fileToIdMap.set(fileURLToPath(fileUrl), id)
         await parseData(existingEntry)
         return
     }
