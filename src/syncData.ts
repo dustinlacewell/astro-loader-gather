@@ -75,11 +75,8 @@ export async function syncData<E extends Entry>(context: SyncContext<E>, parsedP
             store.addModuleImport(existingEntry.filePath)
         }
 
-        if (existingEntry.rendered?.metadata?.imagePaths?.length) {
-            (store as any).addAssetImports(
-                existingEntry.rendered.metadata.imagePaths,
-                existingEntry.filePath,
-            )
+        if (existingEntry.assetImports?.length) {
+            store.addAssetImports(existingEntry.assetImports, existingEntry.filePath)
         }
         fileToIdMap.set(fileURLToPath(fileUrl), id)
         await parseData(existingEntry)
@@ -118,6 +115,8 @@ export async function syncData<E extends Entry>(context: SyncContext<E>, parsedP
             logger.error(`Error rendering ${entry}: ${error.message}`)
         }
 
+        // Astro rebuilds its image imports from each entry's assetImports;
+        // images registered any other way are dropped.
         store.set({
             id,
             data: parsedData,
@@ -125,10 +124,8 @@ export async function syncData<E extends Entry>(context: SyncContext<E>, parsedP
             filePath: relativePath,
             digest,
             rendered,
+            assetImports: rendered?.metadata?.imagePaths,
         })
-        if (rendered?.metadata?.imagePaths?.length) {
-            (store as any).addAssetImports(rendered.metadata.imagePaths, relativePath)
-        }
     } else if ('contentModuleTypes' in entryType) {
         store.set({
             id,
